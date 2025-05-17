@@ -2,19 +2,19 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 
-// POST /users
-router.post('/create', userController.create);
+// Create a new user
+router.post('/', userController.create); // POST /api/users
 
-// GET all users
-router.get('/', userController.list);
+// Get all users
+router.get('/', userController.list); // GET /api/users
 
-// GET /users/:id
-router.get('/:id', userController.show);
+// Get a user by ID
+router.get('/:id', userController.show); // GET /api/users/:id
 
-// PUT /users/:id
-router.put('/:id', userController.update);
+// Update a user by ID
+router.put('/:id', userController.update); // PUT /api/users/:id
 
-// DELETE /users/:id
-router.delete('/:id', userController.remove);
+// Delete a user by ID
+router.delete('/:id', userController.remove); // DELETE /api/users/:id
 
 module.exports = router;

@@ -1,52 +1,47 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var cors = require('cors'); // <--- ADD THIS
+require('dotenv').config(); // Load environment variables early
+console.log('MONGO_URI:', process.env.MONGO_URI);
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/userRoutes');
-const { default: mongoose } = require('mongoose');
+const express = require('express');
+const mongoose = require('mongoose');
+const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
-var app = express();
+const userRoutes = require('./routes/userRoutes');
+const carRoutes = require('./routes/carRoutes'); // if you have car routes
 
-// Enable CORS for all routes
-app.use(cors()); // <--- ADD THIS LINE
+const app = express();
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'hbs');
-
-app.use(logger('dev'));
+// Middlewares
+app.use(cors());
+app.use(morgan('dev'));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+// Routes
+app.use('/api/users', userRoutes);
+app.use('/api/cars', carRoutes); // optional
 
-mongoose.connect('mongodb+srv://viktormitanoski:Skokacca123$@cluster0.kohzhsx.mongodb.net/endava', {
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch(err => {
-  console.error('MongoDB connection error:', err);
+})
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
+
+// 404 handler
+app.use((req, res, next) => {
+  res.status(404).json({ message: 'Endpoint not found' });
 });
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
-});
-
-// error handler
-app.use(function(err, req, res, next) {
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
-  res.status(err.status || 500);
-  res.render('error');
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    message: err.message || 'Something went wrong',
+  });
 });
 
 module.exports = app;

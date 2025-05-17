@@ -1,10 +1,5 @@
-const UserModel = require('../models/userModel.js');
+const UserModel = require('../models/User');
 
-/**
- * userController.js
- *
- * Modernized controller for managing users with async/await.
- */
 module.exports = {
     // Get all users
     list: async (req, res) => {
@@ -32,9 +27,16 @@ module.exports = {
     // Create new user
     create: async (req, res) => {
         try {
-            const { Name, Surname, Email, dateOfBirth } = req.body;
-            const newUser = new UserModel({ Name, Surname, Email, dateOfBirth });
+            const { email, password } = req.body;
+
+            const existingUser = await UserModel.findOne({ email });
+            if (existingUser) {
+                return res.status(409).json({ message: 'Email already exists' });
+            }
+
+            const newUser = new UserModel({ email, password });
             const savedUser = await newUser.save();
+
             res.status(201).json(savedUser);
         } catch (error) {
             res.status(500).json({ message: 'Error creating user', error });
@@ -49,11 +51,9 @@ module.exports = {
                 return res.status(404).json({ message: 'User not found' });
             }
 
-            const { Name, Surname, Email, dateOfBirth } = req.body;
-            user.Name = Name ?? user.Name;
-            user.Surname = Surname ?? user.Surname;
-            user.Email = Email ?? user.Email;
-            user.dateOfBirth = dateOfBirth ?? user.dateOfBirth;
+            const { email, password } = req.body;
+            if (email !== undefined) user.email = email;
+            if (password !== undefined) user.password = password;
 
             const updatedUser = await user.save();
             res.status(200).json(updatedUser);
