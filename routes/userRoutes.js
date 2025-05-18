@@ -3,7 +3,10 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 
 // Create a new user
-router.post('/', userController.create); // POST /api/users
+router.post('/register', userController.registerWithFirebase); 
+
+// login a user
+router.post('/login', userController.loginWithFirebase); 
 
 // Get all users
 router.get('/', userController.list); // GET /api/users
