@@ -1,20 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const carController = require("../controllers/carController");
+const authenticateFirebaseToken = require('../middleware/authMiddleware');
 
-// Create a new car
-router.post("/", carController.createCar); // POST /api/cars
+// All routes here are protected
+router.use(authenticateFirebaseToken);
 
-// Get all cars
-router.get("/", carController.getAllCars); // GET /api/cars
-
-// Get a car by ID
-router.get("/:id", carController.getCarById); // GET /api/cars/:id
-
-// Update a car by ID
-router.put("/:id", carController.updateCar); // PUT /api/cars/:id
-
-// Delete a car by ID
-router.delete("/:id", carController.deleteCar); // DELETE /api/cars/:id
+router.post("/", carController.createCar);
+router.get("/", carController.getAllCars);
+router.get("/:id", carController.getCarById);
+router.put("/:id", carController.updateCar);
+router.delete("/:id", carController.deleteCar);
 
 module.exports = router;

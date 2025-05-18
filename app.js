@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const admin = require('./config/firebaseAdmin'); // ✅ Firebase init
 
 const userRoutes = require('./routes/userRoutes');
 const carRoutes = require('./routes/carRoutes'); // if you have car routes

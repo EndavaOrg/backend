@@ -1,4 +1,5 @@
 const UserModel = require('../models/User');
+const admin = require('firebase-admin');
 
 module.exports = {
     // Get all users
@@ -24,22 +25,73 @@ module.exports = {
         }
     },
 
-    // Create new user
-    create: async (req, res) => {
+    registerWithFirebase: async (req, res) => {
+        const { token } = req.body;
+    
+        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
+    
         try {
-            const { email, password } = req.body;
-
-            const existingUser = await UserModel.findOne({ email });
-            if (existingUser) {
-                return res.status(409).json({ message: 'Email already exists' });
-            }
-
-            const newUser = new UserModel({ email, password });
-            const savedUser = await newUser.save();
-
-            res.status(201).json(savedUser);
+          const decodedToken = await admin.auth().verifyIdToken(token);
+          const { uid, email } = decodedToken;
+    
+          const existingUser = await UserModel.findOne({ firebaseUid: uid });
+          if (existingUser) {
+            return res.status(400).json({ message: 'User already exists' });
+          }
+    
+          const user = new UserModel({ email, firebaseUid: uid });
+          await user.save();
+    
+          res.status(201).json({ id: user._id, email: user.email });
         } catch (error) {
-            res.status(500).json({ message: 'Error creating user', error });
+          console.error('Firebase register error:', error);
+          res.status(401).json({ message: 'Invalid or expired token' });
+        }
+      },
+    
+      loginWithFirebase: async (req, res) => {
+        const { token } = req.body;
+    
+        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
+    
+        try {
+          const decodedToken = await admin.auth().verifyIdToken(token);
+          const { uid, email } = decodedToken;
+    
+          const user = await UserModel.findOne({ firebaseUid: uid });
+    
+          if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+          }
+    
+          res.status(200).json({ id: user._id, email: user.email });
+        } catch (error) {
+          console.error('Firebase login error:', error);
+          res.status(401).json({ message: 'Invalid or expired token' });
+        }
+      },
+
+      loginWithGoogle: async (req, res) => {
+        const { token } = req.body;
+    
+        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
+    
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            const { uid, email } = decodedToken;
+    
+            let user = await UserModel.findOne({ firebaseUid: uid });
+    
+            if (!user) {
+                user = new UserModel({ email, firebaseUid: uid });
+                await user.save();
+            }
+    
+            res.status(200).json({ id: user._id, email: user.email });
+    
+        } catch (error) {
+            console.error('Firebase auth error:', error);
+            res.status(401).json({ message: 'Invalid or expired token' });
         }
     },
 
