@@ -1,24 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const authenticateFirebaseToken = require('../middleware/authMiddleware');
 
-// Create a new user
-router.post('/register', userController.registerWithFirebase); 
+// Public routes
+router.post('/register', userController.registerWithFirebase);
+router.post('/login', userController.loginWithFirebase);
+router.post('/loginWithGoogle', userController.loginWithGoogle);
+// todo make login and loginWithGoogle into one call
 
-// login a user
-router.post('/login', userController.loginWithFirebase); 
-router.post('/loginWithGoogle', userController.loginWithGoogle); 
-
-// Get all users
-router.get('/', userController.list); // GET /api/users
-
-// Get a user by ID
-router.get('/:id', userController.show); // GET /api/users/:id
-
-// Update a user by ID
-router.put('/:id', userController.update); // PUT /api/users/:id
-
-// Delete a user by ID
-router.delete('/:id', userController.remove); // DELETE /api/users/:id
+// Protected routes
+router.get('/', authenticateFirebaseToken, userController.list);
+router.get('/:id', authenticateFirebaseToken, userController.show);
+router.put('/:id', authenticateFirebaseToken, userController.update);
+router.delete('/:id', authenticateFirebaseToken, userController.remove);
 
 module.exports = router;
