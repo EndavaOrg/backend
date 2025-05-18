@@ -7,6 +7,7 @@ router.post('/register', userController.registerWithFirebase);
 
 // login a user
 router.post('/login', userController.loginWithFirebase); 
+router.post('/loginWithGoogle', userController.loginWithGoogle); 
 
 // Get all users
 router.get('/', userController.list); // GET /api/users
