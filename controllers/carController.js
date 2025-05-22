@@ -1,22 +1,39 @@
 const Car = require('../models/Car');
 
-// GET /api/cars - Get all cars with optional filters
 exports.getAllCars = async (req, res) => {
   try {
     const filter = {};
 
-    // String fields with regex
     if (req.query.make) filter.make = { $regex: new RegExp(req.query.make, 'i') };
     if (req.query.model) filter.model = { $regex: new RegExp(req.query.model, 'i') };
-    if (req.query.fuel_type) filter.fuel_type = { $regex: new RegExp(req.query.fuel_type, 'i') };
-    if (req.query.shifter_type) filter.shifter_type = { $regex: new RegExp(req.query.shifter_type, 'i') };
+    if (req.query.fuel_type) {
+  const type = req.query.fuel_type.toLowerCase();
+  if (type === 'diesel') {
+    filter.fuel_type = { $regex: /diesel/i };
+  } else if (type === 'petrol') {
+    filter.fuel_type = { $regex: /bencin/i };
+  } else if (type === 'hybrid') {
+    filter.fuel_type = { $regex: /hibrid/i };
+  } else if (type === 'electric') {
+    filter.fuel_type = { $regex: /elektro|electric/i };
+  }
+}
 
-    // First registration / Year
+    if (req.query.shifter_type) {
+  const type = req.query.shifter_type.toLowerCase();
+  if (type === 'automatic') {
+    filter.gearbox = { $regex: /avtomatski/i };
+  } else if (type === 'manual') {
+    filter.gearbox = { $regex: /ročni/i };
+  }
+}
+
+
+
     if (req.query.yearFrom && !isNaN(Number(req.query.yearFrom))) {
       filter.first_registration = { $gte: Number(req.query.yearFrom) };
     }
 
-    // Mileage
     const mileageFrom = Number(req.query.mileageFrom);
     const mileageTo = Number(req.query.mileageTo);
     if (!isNaN(mileageFrom) || !isNaN(mileageTo)) {
@@ -25,7 +42,6 @@ exports.getAllCars = async (req, res) => {
       if (!isNaN(mileageTo)) filter.mileage.$lte = mileageTo;
     }
 
-    // Power (engine_kw), convert HP to kW if needed
     let powerFrom = Number(req.query.powerFrom);
     let powerTo = Number(req.query.powerTo);
     const powerUnit = req.query.powerUnit;
@@ -41,7 +57,6 @@ exports.getAllCars = async (req, res) => {
       if (!isNaN(powerTo)) filter.engine_kw.$lte = powerTo;
     }
 
-    // Price
     const priceFrom = Number(req.query.priceFrom);
     const priceTo = Number(req.query.priceTo);
     if (!isNaN(priceFrom) || !isNaN(priceTo)) {
@@ -49,6 +64,15 @@ exports.getAllCars = async (req, res) => {
       if (!isNaN(priceFrom)) filter.price.$gte = priceFrom;
       if (!isNaN(priceTo)) filter.price.$lte = priceTo;
     }
+
+    const ccmFrom = Number(req.query.engineCcmFrom);
+    const ccmTo = Number(req.query.engineCcmTo);
+    if (!isNaN(ccmFrom) || !isNaN(ccmTo)) {
+      filter.engine_ccm = {};
+      if (!isNaN(ccmFrom)) filter.engine_ccm.$gte = ccmFrom;
+      if (!isNaN(ccmTo)) filter.engine_ccm.$lte = ccmTo;
+    }
+
 
     const cars = await Car.find(filter);
     res.status(200).json(cars);
@@ -59,6 +83,7 @@ exports.getAllCars = async (req, res) => {
     });
   }
 };
+
 
 
 
