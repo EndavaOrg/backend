@@ -26,69 +26,78 @@ module.exports = {
     },
 
     registerWithFirebase: async (req, res) => {
-        const { token } = req.body;
-    
-        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
-    
-        try {
-          const decodedToken = await admin.auth().verifyIdToken(token);
-          const { uid, email } = decodedToken;
-    
-          const existingUser = await UserModel.findOne({ firebaseUid: uid });
-          if (existingUser) {
-            return res.status(400).json({ message: 'User already exists' });
-          }
-    
-          const user = new UserModel({ email, firebaseUid: uid });
-          await user.save();
-    
-          res.status(201).json({ id: user._id, email: user.email });
-        } catch (error) {
-          console.error('Firebase register error:', error);
-          res.status(401).json({ message: 'Invalid or expired token' });
-        }
-      },
-    
-      loginWithFirebase: async (req, res) => {
-        const { token } = req.body;
-    
-        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
-    
-        try {
-          const decodedToken = await admin.auth().verifyIdToken(token);
-          const { uid, email } = decodedToken;
-    
-          const user = await UserModel.findOne({ firebaseUid: uid });
-    
-          if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-          }
-    
-          res.status(200).json({ id: user._id, email: user.email });
-        } catch (error) {
-          console.error('Firebase login error:', error);
-          res.status(401).json({ message: 'Invalid or expired token' });
-        }
-      },
+        const { token, ime, priimek, telefon, preferences } = req.body;
 
-      loginWithGoogle: async (req, res) => {
-        const { token } = req.body;
-    
         if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
-    
+
         try {
             const decodedToken = await admin.auth().verifyIdToken(token);
             const { uid, email } = decodedToken;
-    
+
+            const existingUser = await UserModel.findOne({ firebaseUid: uid });
+            if (existingUser) {
+                return res.status(400).json({ message: 'User already exists' });
+            }
+
+            const user = new UserModel({
+                email,
+                firebaseUid: uid,
+                ime,
+                priimek,
+                telefon,
+                preferences,
+            });
+
+            await user.save();
+
+            res.status(201).json({ id: user._id, email: user.email });
+        } catch (error) {
+            console.error('Firebase register error:', error);
+            res.status(401).json({ message: 'Invalid or expired token' });
+        }
+    },
+
+
+    loginWithFirebase: async (req, res) => {
+        const { token } = req.body;
+
+        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
+
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            const { uid, email } = decodedToken;
+
+            const user = await UserModel.findOne({ firebaseUid: uid });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            res.status(200).json({ id: user._id, email: user.email });
+        } catch (error) {
+            console.error('Firebase login error:', error);
+            res.status(401).json({ message: 'Invalid or expired token' });
+        }
+    },
+
+    loginWithGoogle: async (req, res) => {
+        const { token } = req.body;
+
+        if (!token) return res.status(400).json({ message: 'Firebase ID token required' });
+
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            const { uid, email } = decodedToken;
+
             let user = await UserModel.findOne({ firebaseUid: uid });
-    
+
             if (!user) {
                 user = new UserModel({ email, firebaseUid: uid });
                 await user.save();
             }
-    
+
             res.status(200).json({ id: user._id, email: user.email });
-    
+
         } catch (error) {
             console.error('Firebase auth error:', error);
             res.status(401).json({ message: 'Invalid or expired token' });
@@ -103,9 +112,13 @@ module.exports = {
                 return res.status(404).json({ message: 'User not found' });
             }
 
-            const { email, password } = req.body;
+            const { email, ime, priimek, telefon, preferences } = req.body;
+
             if (email !== undefined) user.email = email;
-            if (password !== undefined) user.password = password;
+            if (ime !== undefined) user.ime = ime;
+            if (priimek !== undefined) user.priimek = priimek;
+            if (telefon !== undefined) user.telefon = telefon;
+            if (preferences !== undefined) user.preferences = preferences;
 
             const updatedUser = await user.save();
             res.status(200).json(updatedUser);
@@ -113,7 +126,6 @@ module.exports = {
             res.status(500).json({ message: 'Error updating user', error });
         }
     },
-
     // Delete user by ID
     remove: async (req, res) => {
         try {
@@ -125,5 +137,28 @@ module.exports = {
         } catch (error) {
             res.status(500).json({ message: 'Error deleting user', error });
         }
-    }
+    },
+    updatePreferences: async (req, res) => {
+        try {
+          const userId = req.params.userId;
+      
+          const user = await UserModel.findOne({ firebaseUid: userId });
+          if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+          }
+      
+          const { preferences } = req.body;
+          if (!preferences || typeof preferences !== 'object') {
+            return res.status(400).json({ message: 'Invalid preferences object' });
+          }
+      
+          user.preferences = preferences;
+      
+          const updatedUser = await user.save();
+          res.status(200).json({ message: 'Preferences replaced', preferences: updatedUser.preferences });
+        } catch (error) {
+          res.status(500).json({ message: 'Error updating preferences', error });
+        }
+      },
+       
 };
