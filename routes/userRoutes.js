@@ -14,5 +14,6 @@ router.get('/', authenticateFirebaseToken, userController.list);
 router.get('/:id', authenticateFirebaseToken, userController.show);
 router.put('/:id', authenticateFirebaseToken, userController.update);
 router.delete('/:id', authenticateFirebaseToken, userController.remove);
+router.put('/:userId/preferences', authenticateFirebaseToken, userController.updatePreferences);
 
 module.exports = router;
