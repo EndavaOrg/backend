@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const carController = require("../controllers/carController");
-const authenticateFirebaseToken = require('../middleware/authMiddleware');
+// const authenticateFirebaseToken = require('../middleware/authMiddleware');
 
-// All routes here are protected
-router.use(authenticateFirebaseToken);
+// // All routes here are protected
+// router.use(authenticateFirebaseToken);
 
 router.post("/", carController.createCar);
 router.get("/", carController.getAllCars);
