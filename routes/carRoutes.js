@@ -3,7 +3,6 @@ const router = express.Router();
 const carController = require("../controllers/carController");
 const axios = require("axios");
 
-// Your existing routes
 router.post("/", carController.createCar);
 router.get("/", carController.getAllCars);
 router.get("/:id", carController.getCarById);
