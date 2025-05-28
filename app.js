@@ -11,6 +11,7 @@ const admin = require('./config/firebaseAdmin'); // firebase init
 const userRoutes = require('./routes/userRoutes');
 const carRoutes = require('./routes/carRoutes');
 const motorcycleRoutes = require('./routes/motorcycleRoutes');
+const trucksRoutes = require('./routes/truckRoutes');
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.get('/', (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/cars', carRoutes); 
 app.use('/api/motorcycles', motorcycleRoutes);
+app.use('/api/trucks', trucksRoutes);
 
 // mongodb connection
 mongoose.connect(process.env.MONGO_URI)
