@@ -1,4 +1,4 @@
-require('dotenv').config(); // Load environment variables early
+require('dotenv').config(); 
 console.log('MONGO_URI:', process.env.MONGO_URI);
 
 const express = require('express');
@@ -6,29 +6,29 @@ const mongoose = require('mongoose');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const admin = require('./config/firebaseAdmin'); // ✅ Firebase init
+const admin = require('./config/firebaseAdmin'); // firebase init
 
 const userRoutes = require('./routes/userRoutes');
-const carRoutes = require('./routes/carRoutes'); // if you have car routes
-
+const carRoutes = require('./routes/carRoutes');
+const motorcycleRoutes = require('./routes/motorcycleRoutes');
 
 const app = express();
 
-// Middlewares
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Routes
+// routes
 app.get('/', (req, res) => {
   res.send('🚀 API is running');
 });
 app.use('/api/users', userRoutes);
-app.use('/api/cars', carRoutes); // optional
+app.use('/api/cars', carRoutes); 
+app.use('/api/motorcycles', motorcycleRoutes);
 
-// MongoDB connection
+// mongodb connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   res.status(404).json({ message: 'Endpoint not found' });
 });
 
-// Error handler
+// error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
