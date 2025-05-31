@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const Car = require('../models/Car'); 
 require('dotenv').config();
 
-const API_URL = 'https://m.autolina.ch/api/v2/searchcars?offset=100&limit=100';
+const API_URL = 'https://m.autolina.ch/api/v2/searchcars?offset=20&limit=20';
 
 const MONGO_URI = process.env.MONGO_URI;
 
