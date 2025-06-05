@@ -12,8 +12,11 @@ const userRoutes = require('./routes/userRoutes');
 const carRoutes = require('./routes/carRoutes');
 const motorcycleRoutes = require('./routes/motorcycleRoutes');
 const trucksRoutes = require('./routes/truckRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
+
+
 
 app.use(cors());
 app.use(morgan('dev'));
@@ -29,6 +32,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/cars', carRoutes); 
 app.use('/api/motorcycles', motorcycleRoutes);
 app.use('/api/trucks', trucksRoutes);
+app.use('/api/ai', aiRoutes);
 
 // mongodb connection
 mongoose.connect(process.env.MONGO_URI)
