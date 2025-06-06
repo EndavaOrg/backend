@@ -15,6 +15,7 @@ You are a car search assistant that helps extract structured filters from natura
 
 Your task:
 👉 Analyze the user's natural-language prompt and infer any intent that relates to a car listing.
+👉 Map vague concepts into concrete filter values where possible.
 👉 Return only valid JSON like this (no text, no code blocks):
 
 {
@@ -32,26 +33,37 @@ Supported fields:
 - price_min, price_max (number)
 - mileage_min, mileage_max (number)
 - fuel_type: "diesel" | "petrol" | "hybrid" | "electric"
-- year_min, year_max (e.g. 2005)
+- year_min, year_max (number)
 - engine_kw_min, engine_kw_max
 - engine_ccm_min, engine_ccm_max
 - state: "NOVO" | "RABLJENO"
 
-Tips:
-- "really old car" ⇒ year_max: 1990
-- "new car" ⇒ year_min: 2020
-- "cheap" ⇒ price_max: 5000
-- "expensive" ⇒ price_min: 25000
-- "low mileage" ⇒ mileage_max: 100000
-- "powerful" ⇒ engine_kw_min: 110
-- "weak engine" ⇒ engine_kw_max: 60
-- "family car" ⇒ no specific field, but often 4 doors, comfort, petrol/diesel
+Concept mappings:
+- "really old car" → year_max: 1990
+- "new car" → year_min: 2020
+- "cheap" → price_max: 5000
+- "expensive" → price_min: 25000
+- "low mileage" → mileage_max: 100000
+- "powerful" → engine_kw_min: 110
+- "weak engine" → engine_kw_max: 60
+- "family car", "comfortable family car", "huge family car" → SUVs or Vans, year_min >= 2010, mileage_max <= 200000, price_max <= 15000
+- "sports car" → engine_kw_min >= 150, price_min >= 10000
+- "fast car" → engine_kw_min >= 180
+- "slow car" → engine_kw_max <= 80
+- "good fuel economy", "fuel efficient" → fuel_type = diesel OR hybrid OR electric, engine_ccm <= 1600
+- "off-road", "off-road capabilities" → engine_kw_min >= 120, gearbox = "automatic" or "manual", prioritize SUVs or 4x4 if possible (map to gearbox if known)
+- "city car", "small city car" → engine_ccm_max <= 1600, engine_kw_max <= 100, small car (no direct field, so return engine filters only)
 
-Prompt from user:
+Instructions:
+- If a concept is mentioned but no direct field exists, map it using the rules above.
+- Only return the JSON object, no explanation, no comments.
+
+User prompt:
 "${prompt}"
 
 Now return only the JSON object.
 `;
+
 
 
     const response = await fetch(`${GEMINI_API_URL}?key=${process.env.GOOGLE_GEMINI_API_KEY}`, {
@@ -90,14 +102,20 @@ Now return only the JSON object.
     if (filters.gearbox === "manual") query.gearbox = /ročni/i;
 
     if (filters.fuel_type) {
-      const map = {
-        diesel: /diesel/i,
-        petrol: /bencin|petrol/i,
-        hybrid: /hibrid/i,
-        electric: /elektrika|elektro|electric/i
-      };
-      query.fuel_type = map[filters.fuel_type];
-    }
+  const map = {
+    diesel: /diesel/i,
+    petrol: /bencin|petrol/i,
+    hybrid: /hibrid/i,
+    electric: /elektrika|elektro|electric/i
+  };
+
+  if (Array.isArray(filters.fuel_type)) {
+    query.$or = filters.fuel_type.map(ft => ({ fuel_type: map[ft] }));
+  } else {
+    query.fuel_type = map[filters.fuel_type];
+  }
+}
+
 
     if (filters.year_min || filters.year_max) {
       query.first_registration = {};
