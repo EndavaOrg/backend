@@ -15,22 +15,25 @@ exports.getAllTrucks = async (req, res) => {
     const {
       make,
       model,
-      first_registration,
+      yearFrom,
       mileageFrom,
       mileageTo,
       priceFrom,
       priceTo,
       engineKwFrom,
-      engineKwTo
+      engineKwTo,
+      fuel_type,
+      gearbox
     } = req.query;
 
     const filter = {};
 
     if (make) filter.make = new RegExp(make, 'i');
+
     if (model) filter.model = new RegExp(model, 'i');
 
-    if (first_registration && !isNaN(first_registration)) {
-      filter.first_registration = { $gte: parseInt(first_registration) };
+    if (yearFrom && !isNaN(yearFrom)) {
+      filter.first_registration = { $gte: parseInt(yearFrom) };
     }
 
     if (mileageFrom || mileageTo) {
@@ -49,6 +52,17 @@ exports.getAllTrucks = async (req, res) => {
       filter.engine_kw = {};
       if (!isNaN(engineKwFrom)) filter.engine_kw.$gte = Number(engineKwFrom);
       if (!isNaN(engineKwTo)) filter.engine_kw.$lte = Number(engineKwTo);
+    }
+
+    if (fuel_type) {
+      filter.fuel_type = new RegExp(fuel_type, 'i');
+    }
+
+    if (gearbox) {
+      const type = gearbox.toLowerCase();
+      if (type === 'avtomatski') filter.gearbox = { $regex: /avtomatski/i };
+      else if (type === 'ročni') filter.gearbox = { $regex: /ročni/i };
+      else filter.gearbox = new RegExp(gearbox, 'i'); // fallback
     }
 
     const trucks = await Truck.find(filter);
