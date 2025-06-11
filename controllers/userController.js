@@ -2,7 +2,6 @@ const UserModel = require('../models/User');
 const admin = require('firebase-admin');
 
 module.exports = {
-    // Get all users
     list: async (req, res) => {
         try {
             const users = await UserModel.find();
@@ -12,7 +11,6 @@ module.exports = {
         }
     },
 
-    // Get user by ID
     show: async (req, res) => {
         try {
             const user = await UserModel.findById(req.params.id);
@@ -104,7 +102,6 @@ module.exports = {
         }
     },
 
-    // Update user by ID
     update: async (req, res) => {
         try {
             const user = await UserModel.findById(req.params.id);
@@ -126,7 +123,7 @@ module.exports = {
             res.status(500).json({ message: 'Error updating user', error });
         }
     },
-    // Delete user by ID
+
     remove: async (req, res) => {
         try {
             const deletedUser = await UserModel.findByIdAndDelete(req.params.id);
@@ -139,26 +136,63 @@ module.exports = {
         }
     },
     updatePreferences: async (req, res) => {
-        try {
-          const userId = req.params.userId;
-      
-          const user = await UserModel.findOne({ firebaseUid: userId });
-          if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-          }
-      
-          const { preferences } = req.body;
-          if (!preferences || typeof preferences !== 'object') {
-            return res.status(400).json({ message: 'Invalid preferences object' });
-          }
-      
-          user.preferences = preferences;
-      
-          const updatedUser = await user.save();
-          res.status(200).json({ message: 'Preferences replaced', preferences: updatedUser.preferences });
-        } catch (error) {
-          res.status(500).json({ message: 'Error updating preferences', error });
+    try {
+        const userId = req.params.userId;
+        const user = await UserModel.findOne({ firebaseUid: userId });
+        if (!user) {
+        return res.status(404).json({ message: 'User not found' });
         }
-      },
+
+        const { vehicleType, preferences } = req.body;
+
+        if (!vehicleType || !['car', 'motorcycle', 'truck'].includes(vehicleType)) {
+        return res.status(400).json({ message: 'Invalid or missing vehicleType' });
+        }
+
+        if (!preferences || typeof preferences !== 'object') {
+        return res.status(400).json({ message: 'Invalid preferences object' });
+        }
+
+        if (!user.preferences || typeof user.preferences !== 'object') {
+        user.preferences = {
+            car: {},
+            motorcycle: {},
+            truck: {},
+            selectedVehicleType: 'car',
+        };
+        }
+
+        if (!user.preferences.car) user.preferences.car = {};
+        if (!user.preferences.motorcycle) user.preferences.motorcycle = {};
+        if (!user.preferences.truck) user.preferences.truck = {};
+
+        user.preferences[vehicleType] = preferences;
+        user.preferences.selectedVehicleType = vehicleType;
+
+        const updatedUser = await user.save();
+        res.status(200).json({
+        message: 'Preferences updated',
+        selectedVehicleType: updatedUser.preferences.selectedVehicleType,
+        preferences: updatedUser.preferences[vehicleType],
+        });
+    } catch (error) {
+        console.error('Error in updatePreferences:', error);
+        res.status(500).json({ message: 'Error updating preferences', error });
+    }
+    },
+
+
+    findByFirebaseUid: async (req, res) => {
+        try {
+            const user = await UserModel.findOne({ firebaseUid: req.params.firebaseUid });
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+            res.status(200).json(user);
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching user by firebaseUid', error });
+        }
+    }
+
        
 };

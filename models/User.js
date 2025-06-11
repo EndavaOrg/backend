@@ -1,24 +1,13 @@
 const mongoose = require('mongoose');
 
-const carPreferencesSchema = new mongoose.Schema({
+const preferencesSchema = new mongoose.Schema({
   make: String,
   model: String,
-  maxPrice: Number,
   minYear: Number,
+  maxPrice: Number,
   maxMileage: Number,
-  fuelType: {
-    type: String,
-    enum: ['petrol', 'diesel', 'electric', ''],
-    default: '',
-  },
-  gearbox: {
-    type: String,
-    enum: ['manual', 'automatic', ''],
-    default: '',
-  },
-  minEngineCCM: Number,
-  minEngineKW: Number,
-  batteryCapacity: Number,
+  fuelType: String,
+  gearbox: String,
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
@@ -35,7 +24,16 @@ const userSchema = new mongoose.Schema({
   ime: String,
   priimek: String,
   telefon: String,
-  preferences: carPreferencesSchema,
+  preferences: {
+    car: preferencesSchema,
+    motorcycle: preferencesSchema,
+    truck: preferencesSchema,
+    selectedVehicleType: {
+      type: String,
+      enum: ['car', 'motorcycle', 'truck'],
+      default: 'car',
+    },
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
