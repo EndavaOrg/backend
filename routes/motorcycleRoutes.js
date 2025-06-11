@@ -3,12 +3,8 @@ const router = express.Router();
 const controller = require('../controllers/motorcycleController');
 const Motorcycle = require('../models/Motorcycle');
 
-
 router.post('/', controller.createMotorcycle);
-
-
 router.get('/', controller.getAllMotorcycles);
-
 
 router.get('/makes', async (req, res) => {
   try {
