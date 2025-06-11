@@ -1,25 +1,108 @@
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 const User = require('../../models/User');
 
-describe('User model', () => {
-    it('should require email and firebaseUid', () => {
-        const user = new User({});
-        const error = user.validateSync();
-        expect(error.errors.email).toBeDefined();
-        expect(error.errors.firebaseUid).toBeDefined();
-    });
+let mongoServer;
 
-    it('should embed preferences properly', () => {
-        const user = new User({
+beforeAll(async () => {
+    mongoServer = await MongoMemoryServer.create();
+    const uri = mongoServer.getUri();
+
+    await mongoose.connect(uri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    });
+});
+
+afterAll(async () => {
+    await mongoose.disconnect();
+    await mongoServer.stop();
+});
+
+afterEach(async () => {
+    await User.deleteMany();
+});
+
+describe('User Model Test', () => {
+
+    it('should create and save a valid user', async () => {
+        const validUser = new User({
             email: 'test@example.com',
-            firebaseUid: 'abc123',
+            firebaseUid: 'firebase123',
+            ime: 'John',
+            priimek: 'Doe',
+            telefon: '123456789',
             preferences: {
-                make: 'Tesla',
-                maxPrice: 30000,
-                fuelType: 'electric'
+                car: {
+                    make: 'Audi',
+                    model: 'A4',
+                    minYear: 2015,
+                    maxPrice: 20000,
+                    maxMileage: 100000,
+                    fuelType: 'diesel',
+                    gearbox: 'manual'
+                },
+                selectedVehicleType: 'car'
             }
         });
 
-        expect(user.preferences.make).toBe('Tesla');
-        expect(user.preferences.fuelType).toBe('electric');
+        const savedUser = await validUser.save();
+
+        expect(savedUser._id).toBeDefined();
+        expect(savedUser.email).toBe('test@example.com');
+        expect(savedUser.preferences.car.make).toBe('Audi');
+        expect(savedUser.preferences.selectedVehicleType).toBe('car');
     });
+
+    it('should fail if required fields are missing', async () => {
+        const invalidUser = new User({
+            ime: 'John'
+        });
+
+        let err;
+        try {
+            await invalidUser.save();
+        } catch (error) {
+            err = error;
+        }
+
+        expect(err).toBeDefined();
+        expect(err.errors['email']).toBeDefined();
+        expect(err.errors['firebaseUid']).toBeDefined();
+    });
+
+    it('should enforce unique email and firebaseUid', async () => {
+        const user1 = new User({
+            email: 'test@example.com',
+            firebaseUid: 'firebase123',
+        });
+
+        const user2 = new User({
+            email: 'test@example.com', // same email
+            firebaseUid: 'firebase123', // same uid
+        });
+
+        await user1.save();
+
+        let err;
+        try {
+            await user2.save();
+        } catch (error) {
+            err = error;
+        }
+
+        expect(err).toBeDefined();
+        expect(err.code).toBe(11000); // Mongo duplicate key error
+    });
+
+    it('should default selectedVehicleType to car', async () => {
+        const user = new User({
+            email: 'test2@example.com',
+            firebaseUid: 'firebase456',
+        });
+
+        const savedUser = await user.save();
+        expect(savedUser.preferences.selectedVehicleType).toBe('car');
+    });
+
 });
