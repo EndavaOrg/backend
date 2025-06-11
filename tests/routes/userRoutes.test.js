@@ -1,30 +1,26 @@
-// tests/routes/userRoutes.test.js
-
-const express = require('express');
 const request = require('supertest');
+const express = require('express');
 const mockingoose = require('mockingoose');
+const admin = require('firebase-admin');
+const userRoutes = require('../../routes/userRoutes');
+const User = require('../../models/User');
 
-// MOCK BEFORE ANY IMPORTS
-jest.mock('../../middleware/authMiddleware', () => (req, res, next) => {
-    req.user = { uid: 'fakeUid123' }; // mock decoded firebase user
-    next();
-});
-
+// Mock Firebase Admin
 jest.mock('firebase-admin', () => ({
     auth: () => ({
         verifyIdToken: jest.fn(),
     }),
 }));
 
-const admin = require('firebase-admin');
-const User = require('../../models/User');
-const userRoutes = require('../../routes/userRoutes');
-
+// Setup app
 const app = express();
 app.use(express.json());
-app.use('/users', userRoutes);
+app.use('/api/users', userRoutes);
 
-describe('User Routes', () => {
+// Mock middleware to bypass auth
+jest.mock('../../middleware/authMiddleware', () => (req, res, next) => next());
+
+describe('User Controller', () => {
     const fakeUser = {
         _id: '507f191e810c19729de860ea',
         email: 'test@example.com',
@@ -32,7 +28,12 @@ describe('User Routes', () => {
         ime: 'Test',
         priimek: 'User',
         telefon: '1234567890',
-        preferences: { make: 'Toyota', model: 'Yaris', maxPrice: 10000 },
+        preferences: {
+            car: { make: 'Toyota', model: 'Yaris', maxPrice: 10000 },
+            motorcycle: {},
+            truck: {},
+            selectedVehicleType: 'car',
+        },
     };
 
     beforeEach(() => {
@@ -40,117 +41,86 @@ describe('User Routes', () => {
         jest.clearAllMocks();
     });
 
-    describe('POST /users/register', () => {
-        // it('should register user with valid token', async () => {
-        //     admin.auth().verifyIdToken.mockResolvedValue({ uid: 'fakeUid123', email: 'test@example.com' });
+    it('should not login with invalid token', async () => {
+        admin.auth().verifyIdToken.mockRejectedValue(new Error('Invalid token'));
 
-        //     mockingoose(User).toReturn(null, 'findOne');
-        //     mockingoose(User).toReturn(fakeUser, 'save');
+        const res = await request(app).post('/api/users/login').send({ token: 'bad_token' });
 
-        //     const res = await request(app).post('/users/register').send({
-        //         token: 'valid_token',
-        //         ime: 'Test',
-        //         priimek: 'User',
-        //         telefon: '1234567890',
-        //         preferences: { make: 'Toyota', model: 'Yaris', maxPrice: 10000 },
-        //     });
-
-        //     expect(res.status).toBe(201);
-        //     expect(res.body).toHaveProperty('email', 'test@example.com');
-        // });
-
-        it('should fail if token is invalid', async () => {
-            admin.auth().verifyIdToken.mockRejectedValue(new Error('Invalid token'));
-
-            const res = await request(app).post('/users/register').send({ token: 'invalid_token' });
-
-            expect(res.status).toBe(401);
-        });
+        expect(res.status).toBe(401);
+        expect(res.body).toHaveProperty('message', 'Invalid or expired token');
     });
 
-    describe('POST /users/login', () => {
-        // it('should login existing user', async () => {
-        //     admin.auth().verifyIdToken.mockResolvedValue({ uid: 'fakeUid123', email: 'test@example.com' });
-        //     mockingoose(User).toReturn(fakeUser, 'findOne');
+    it('should list all users', async () => {
+        mockingoose(User).toReturn([fakeUser], 'find');
 
-        //     const res = await request(app).post('/users/login').send({ token: 'valid_token' });
+        const res = await request(app).get('/api/users');
 
-        //     expect(res.status).toBe(200);
-        //     expect(res.body).toHaveProperty('email', 'test@example.com');
-        // });
+        expect(res.status).toBe(200);
+        expect(res.body.length).toBeGreaterThan(0);
+        expect(res.body[0].email).toBe('test@example.com');
     });
 
-    describe('Protected routes', () => {
-        describe('GET /users', () => {
-            it('should return list of users', async () => {
-                mockingoose(User).toReturn([fakeUser], 'find');
+    it('should return a user by ID', async () => {
+        mockingoose(User).toReturn(fakeUser, 'findOne');
 
-                const res = await request(app).get('/users');
-                expect(res.status).toBe(200);
-                expect(res.body.length).toBeGreaterThan(0);
-            });
-        });
+        const res = await request(app).get(`/api/users/${fakeUser._id}`);
 
-        describe('GET /users/:id', () => {
-            it('should return single user', async () => {
-                mockingoose(User).toReturn(fakeUser, 'findOne');
+        expect(res.status).toBe(200);
+        expect(res.body.email).toBe(fakeUser.email);
+    });
 
-                const res = await request(app).get(`/users/${fakeUser._id}`);
-                expect(res.status).toBe(200);
-                expect(res.body).toHaveProperty('email', 'test@example.com');
-            });
-        });
+    it('should update a user', async () => {
+        const updatedUser = { ...fakeUser, ime: 'Updated' };
+        mockingoose(User).toReturn(fakeUser, 'findOne');
+        mockingoose(User).toReturn(updatedUser, 'save');
 
-        describe('PUT /users/:id', () => {
-            it('should update user data', async () => {
-                const updatedUser = { ...fakeUser, ime: 'Updated' };
+        const res = await request(app)
+            .put(`/api/users/${fakeUser._id}`)
+            .send({ ime: 'Updated' });
 
-                mockingoose(User).toReturn(fakeUser, 'findOne');
-                mockingoose(User).toReturn(updatedUser, 'save');
+        expect(res.status).toBe(200);
+        expect(res.body.ime).toBe('Updated');
+    });
 
-                const res = await request(app)
-                    .put(`/users/${fakeUser._id}`)
-                    .send({ ime: 'Updated' });
+    it('should delete a user', async () => {
+        mockingoose(User).toReturn(fakeUser, 'findOneAndDelete');
 
-                expect(res.status).toBe(200);
-                expect(res.body.ime).toBe('Updated');
-            });
-        });
+        const res = await request(app).delete(`/api/users/${fakeUser._id}`);
 
-        describe('DELETE /users/:id', () => {
-            it('should delete user', async () => {
-                mockingoose(User).toReturn(fakeUser, 'findOne');
-                mockingoose(User).toReturn(fakeUser, 'findOneAndDelete');
+        expect(res.status).toBe(204);
+    });
 
-                const res = await request(app).delete(`/users/${fakeUser._id}`);
-                expect(res.status).toBe(204);
-            });
-        });
+    it('should update user preferences', async () => {
+        const newPreferences = { make: 'BMW', model: 'i3' };
+        const updatedUser = {
+            ...fakeUser,
+            preferences: {
+                ...fakeUser.preferences,
+                car: newPreferences,
+                selectedVehicleType: 'car',
+            },
+        };
 
-        describe('PUT /users/:userId/preferences', () => {
-            it('should update preferences', async () => {
-                const updatedUser = { ...fakeUser, preferences: { make: 'BMW', model: 'i3', maxPrice: 20000 } };
+        mockingoose(User).toReturn(fakeUser, 'findOne');
+        mockingoose(User).toReturn(updatedUser, 'save');
 
-                mockingoose(User).toReturn(fakeUser, 'findOne');
-                mockingoose(User).toReturn(updatedUser, 'save');
+        const res = await request(app)
+            .put(`/api/users/${fakeUser.firebaseUid}/preferences`)
+            .send({ vehicleType: 'car', preferences: newPreferences });
 
-                const res = await request(app)
-                    .put(`/users/${fakeUser.firebaseUid}/preferences`)
-                    .send({ preferences: updatedUser.preferences });
+        expect(res.status).toBe(200);
+        expect(res.body.preferences.make).toBe('BMW');
+        expect(res.body.selectedVehicleType).toBe('car');
+    });
 
-                expect(res.status).toBe(200);
-                expect(res.body.preferences.make).toBe('BMW');
-            });
+    it('should not update preferences with invalid payload', async () => {
+        mockingoose(User).toReturn(fakeUser, 'findOne');
 
-            it('should fail if invalid preferences payload', async () => {
-                mockingoose(User).toReturn(fakeUser, 'findOne');
+        const res = await request(app)
+            .put(`/api/users/${fakeUser.firebaseUid}/preferences`)
+            .send({ vehicleType: 'car', preferences: 'not_an_object' });
 
-                const res = await request(app)
-                    .put(`/users/${fakeUser.firebaseUid}/preferences`)
-                    .send({ preferences: "invalid" });
-
-                expect(res.status).toBe(400);
-            });
-        });
+        expect(res.status).toBe(400);
+        expect(res.body).toHaveProperty('message', 'Invalid preferences object');
     });
 });
