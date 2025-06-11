@@ -13,6 +13,7 @@ router.put('/:id', authenticateFirebaseToken, userController.update);
 router.delete('/:id', authenticateFirebaseToken, userController.remove);
 router.put('/:userId/preferences', authenticateFirebaseToken, userController.updatePreferences);
 router.get('/byFirebaseUid/:firebaseUid', authenticateFirebaseToken, userController.findByFirebaseUid);
+router.get('/:userId/preferences/:vehicleType', authenticateFirebaseToken, userController.getPreferencesByType);
 
 
 module.exports = router;

@@ -1,33 +1,20 @@
 const mongoose = require('mongoose');
-
-const preferencesSchema = new mongoose.Schema({
-  make: String,
-  model: String,
-  minYear: Number,
-  maxPrice: Number,
-  maxMileage: Number,
-  fuelType: String,
-  gearbox: String,
-}, { _id: false });
+const {
+  carPreferenceSchema,
+  motorcyclePreferenceSchema,
+  truckPreferenceSchema,
+} = require('./Preferences');
 
 const userSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  firebaseUid: {
-    type: String,
-    required: true,
-    unique: true,
-  },
+  email: { type: String, required: true, unique: true },
+  firebaseUid: { type: String, required: true, unique: true },
   ime: String,
   priimek: String,
   telefon: String,
   preferences: {
-    car: preferencesSchema,
-    motorcycle: preferencesSchema,
-    truck: preferencesSchema,
+    car: [carPreferenceSchema],
+    motorcycle: [motorcyclePreferenceSchema],
+    truck: [truckPreferenceSchema],
     selectedVehicleType: {
       type: String,
       enum: ['car', 'motorcycle', 'truck'],

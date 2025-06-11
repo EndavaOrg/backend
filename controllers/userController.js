@@ -136,51 +136,61 @@ module.exports = {
         }
     },
     updatePreferences: async (req, res) => {
-    try {
-        const userId = req.params.userId;
-        const user = await UserModel.findOne({ firebaseUid: userId });
-        if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        try {
+            const userId = req.params.userId;
+            const user = await UserModel.findOne({ firebaseUid: userId });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            const { vehicleType, preferences } = req.body;
+
+            const allowedTypes = ['car', 'motorcycle', 'truck'];
+            if (!vehicleType || !allowedTypes.includes(vehicleType)) {
+                return res.status(400).json({ message: 'Invalid or missing vehicleType' });
+            }
+
+            if (!preferences || !Array.isArray(preferences)) {
+                return res.status(400).json({ message: 'Preferences must be an array.' });
+            }
+
+            // Ensure preferences object structure exists
+            if (!user.preferences || typeof user.preferences !== 'object') {
+                user.preferences = {
+                    car: [],
+                    motorcycle: [],
+                    truck: [],
+                    selectedVehicleType: vehicleType,
+                };
+            }
+
+            // Initialize array if needed
+            if (!Array.isArray(user.preferences[vehicleType])) {
+                user.preferences[vehicleType] = [];
+            }
+
+            // Append each new preference (you can also choose to replace them)
+            for (const pref of preferences) {
+                if (typeof pref === 'object') {
+                    user.preferences[vehicleType].push(pref);
+                }
+            }
+
+            user.preferences.selectedVehicleType = vehicleType;
+
+            await user.save();
+
+            res.status(200).json({
+                message: 'Preferences updated',
+                selectedVehicleType: vehicleType,
+                preferences: user.preferences[vehicleType],
+            });
+        } catch (error) {
+            console.error('Error in updatePreferences:', error);
+            res.status(500).json({ message: 'Error updating preferences', error });
         }
-
-        const { vehicleType, preferences } = req.body;
-
-        if (!vehicleType || !['car', 'motorcycle', 'truck'].includes(vehicleType)) {
-        return res.status(400).json({ message: 'Invalid or missing vehicleType' });
-        }
-
-        if (!preferences || typeof preferences !== 'object') {
-        return res.status(400).json({ message: 'Invalid preferences object' });
-        }
-
-        if (!user.preferences || typeof user.preferences !== 'object') {
-        user.preferences = {
-            car: {},
-            motorcycle: {},
-            truck: {},
-            selectedVehicleType: 'car',
-        };
-        }
-
-        if (!user.preferences.car) user.preferences.car = {};
-        if (!user.preferences.motorcycle) user.preferences.motorcycle = {};
-        if (!user.preferences.truck) user.preferences.truck = {};
-
-        user.preferences[vehicleType] = preferences;
-        user.preferences.selectedVehicleType = vehicleType;
-
-        const updatedUser = await user.save();
-        res.status(200).json({
-        message: 'Preferences updated',
-        selectedVehicleType: updatedUser.preferences.selectedVehicleType,
-        preferences: updatedUser.preferences[vehicleType],
-        });
-    } catch (error) {
-        console.error('Error in updatePreferences:', error);
-        res.status(500).json({ message: 'Error updating preferences', error });
-    }
     },
-
 
     findByFirebaseUid: async (req, res) => {
         try {
@@ -192,7 +202,67 @@ module.exports = {
         } catch (error) {
             res.status(500).json({ message: 'Error fetching user by firebaseUid', error });
         }
-    }
+    },
+    getPreferencesByType: async (req, res) => {
+        try {
+            const userId = req.params.userId;
+            const vehicleType = req.params.vehicleType;
 
-       
+            const allowedTypes = ['car', 'motorcycle', 'truck'];
+            if (!allowedTypes.includes(vehicleType)) {
+                return res.status(400).json({ message: 'Invalid vehicle type' });
+            }
+
+            const user = await UserModel.findOne({ firebaseUid: userId });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            const prefs = user.preferences?.[vehicleType] ?? [];
+
+            if (!Array.isArray(prefs)) {
+                return res.status(200).json({ preferences: [] });
+            }
+
+            return res.status(200).json({ preferences: prefs });
+        } catch (error) {
+            console.error('Error fetching preferences:', error);
+            res.status(500).json({ message: 'Error fetching preferences', error });
+        }
+    },
+    deletePreference: async (req, res) => {
+        try {
+            const { userId, vehicleType, index } = req.params;
+
+            const allowedTypes = ['car', 'motorcycle', 'truck'];
+            if (!allowedTypes.includes(vehicleType)) {
+                return res.status(400).json({ message: 'Invalid vehicle type' });
+            }
+
+            const user = await UserModel.findOne({ firebaseUid: userId });
+            if (!user) return res.status(404).json({ message: 'User not found' });
+
+            const prefs = user.preferences?.[vehicleType];
+            if (!Array.isArray(prefs)) {
+                return res.status(400).json({ message: 'No preferences found for this type' });
+            }
+
+            const idx = parseInt(index);
+            if (isNaN(idx) || idx < 0 || idx >= prefs.length) {
+                return res.status(400).json({ message: 'Invalid preference index' });
+            }
+
+            user.preferences[vehicleType].splice(idx, 1);
+            await user.save();
+
+            res.status(200).json({
+                message: 'Preference deleted',
+                preferences: user.preferences[vehicleType],
+            });
+        } catch (error) {
+            console.error('Error deleting preference:', error);
+            res.status(500).json({ message: 'Error deleting preference', error });
+        }
+    }
 };
