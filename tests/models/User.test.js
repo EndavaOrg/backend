@@ -12,6 +12,8 @@ beforeAll(async () => {
         useNewUrlParser: true,
         useUnifiedTopology: true,
     });
+    // Ensure indexes are created
+    await User.createIndexes();
 });
 
 afterAll(async () => {
@@ -20,7 +22,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-    await User.deleteMany();
+    await User.deleteMany({});
 });
 
 describe('User Model Test', () => {
@@ -33,7 +35,7 @@ describe('User Model Test', () => {
             priimek: 'Doe',
             telefon: '123456789',
             preferences: {
-                car: {
+                car: [{
                     make: 'Audi',
                     model: 'A4',
                     minYear: 2015,
@@ -41,7 +43,7 @@ describe('User Model Test', () => {
                     maxMileage: 100000,
                     fuelType: 'diesel',
                     gearbox: 'manual'
-                },
+                }],
                 selectedVehicleType: 'car'
             }
         });
@@ -50,7 +52,7 @@ describe('User Model Test', () => {
 
         expect(savedUser._id).toBeDefined();
         expect(savedUser.email).toBe('test@example.com');
-        expect(savedUser.preferences.car.make).toBe('Audi');
+        expect(savedUser.preferences.car[0].make).toBe('Audi');
         expect(savedUser.preferences.selectedVehicleType).toBe('car');
     });
 

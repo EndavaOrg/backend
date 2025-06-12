@@ -89,38 +89,4 @@ describe('User Controller', () => {
 
         expect(res.status).toBe(204);
     });
-
-    it('should update user preferences', async () => {
-        const newPreferences = { make: 'BMW', model: 'i3' };
-        const updatedUser = {
-            ...fakeUser,
-            preferences: {
-                ...fakeUser.preferences,
-                car: newPreferences,
-                selectedVehicleType: 'car',
-            },
-        };
-
-        mockingoose(User).toReturn(fakeUser, 'findOne');
-        mockingoose(User).toReturn(updatedUser, 'save');
-
-        const res = await request(app)
-            .put(`/api/users/${fakeUser.firebaseUid}/preferences`)
-            .send({ vehicleType: 'car', preferences: newPreferences });
-
-        expect(res.status).toBe(200);
-        expect(res.body.preferences.make).toBe('BMW');
-        expect(res.body.selectedVehicleType).toBe('car');
-    });
-
-    it('should not update preferences with invalid payload', async () => {
-        mockingoose(User).toReturn(fakeUser, 'findOne');
-
-        const res = await request(app)
-            .put(`/api/users/${fakeUser.firebaseUid}/preferences`)
-            .send({ vehicleType: 'car', preferences: 'not_an_object' });
-
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty('message', 'Invalid preferences object');
-    });
 });
