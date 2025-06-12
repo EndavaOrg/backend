@@ -33,7 +33,11 @@ exports.getAllTrucks = async (req, res) => {
     if (model) filter.model = new RegExp(model, 'i');
 
     if (yearFrom && !isNaN(yearFrom)) {
-      filter.first_registration = { $gte: parseInt(yearFrom) };
+      // Match Year field if present
+      filter.$or = [
+        { first_registration: { $gte: parseInt(yearFrom) } },
+        { Year: { $gte: parseInt(yearFrom) } }
+      ];
     }
 
     if (mileageFrom || mileageTo) {
@@ -62,13 +66,22 @@ exports.getAllTrucks = async (req, res) => {
       const type = gearbox.toLowerCase();
       if (type === 'avtomatski') filter.gearbox = { $regex: /avtomatski/i };
       else if (type === 'ročni') filter.gearbox = { $regex: /ročni/i };
-      else filter.gearbox = new RegExp(gearbox, 'i'); // fallback
+      else filter.gearbox = new RegExp(gearbox, 'i');
     }
 
     const trucks = await Truck.find(filter);
-    res.json(trucks);
+
+    // Normalize year:
+    const trucksWithCorrectYear = trucks.map(truck => {
+      const truckObj = truck.toObject();
+      truckObj.first_registration = truckObj.first_registration ?? truckObj.Year ?? null;
+      return truckObj;
+    });
+
+    res.json(trucksWithCorrectYear);
   } catch (error) {
     console.error('Error fetching trucks:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
