@@ -1,5 +1,8 @@
 # Primerjalnik Cen - Backend
 
+link do aplikacije(backend): [https://backend-ubd7.onrender.com/](https://backend-ubd7.onrender.com/)
+
+
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-green?logo=node.js)](https://nodejs.org/) [![Express](https://img.shields.io/badge/Express-4.x-lightgrey?logo=express)](https://expressjs.com/) [![MongoDB](https://img.shields.io/badge/MongoDB-7.x-brightgreen?logo=mongodb)](https://www.mongodb.com/) 
 
 This is the backend repository for the project Primerjalnik Cen, a price comparison website for cars. It provides a REST API for the frontend and handles data storage in MongoDB.
