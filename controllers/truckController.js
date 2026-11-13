@@ -1,4 +1,7 @@
 const Truck = require('../models/Truck');
+const {
+  containsRegex, toNumber, addRange, applyPreferenceRanges, applyListOptions,
+} = require('../utils/queryHelpers');
 
 exports.createTruck = async (req, res) => {
   try {
@@ -12,64 +15,38 @@ exports.createTruck = async (req, res) => {
 
 exports.getAllTrucks = async (req, res) => {
   try {
-    const {
-      make,
-      model,
-      yearFrom,
-      mileageFrom,
-      mileageTo,
-      priceFrom,
-      priceTo,
-      engineKwFrom,
-      engineKwTo,
-      fuel_type,
-      gearbox
-    } = req.query;
-
+    const q = req.query;
     const filter = {};
 
-    if (make) filter.make = new RegExp(make, 'i');
+    if (q.make) filter.make = containsRegex(q.make);
+    if (q.model) filter.model = containsRegex(q.model);
 
-    if (model) filter.model = new RegExp(model, 'i');
-
-    if (yearFrom && !isNaN(yearFrom)) {
-      // Match Year field if present
+    // Older truck documents store the year in "Year" instead of "first_registration"
+    const yearFrom = toNumber(q.yearFrom) ?? toNumber(q.first_registration) ?? toNumber(q.first_registration_gte);
+    if (yearFrom !== undefined) {
       filter.$or = [
-        { first_registration: { $gte: parseInt(yearFrom) } },
-        { Year: { $gte: parseInt(yearFrom) } }
+        { first_registration: { $gte: yearFrom } },
+        { Year: { $gte: yearFrom } },
       ];
     }
 
-    if (mileageFrom || mileageTo) {
-      filter.mileage_km = {};
-      if (!isNaN(mileageFrom)) filter.mileage_km.$gte = Number(mileageFrom);
-      if (!isNaN(mileageTo)) filter.mileage_km.$lte = Number(mileageTo);
+    addRange(filter, 'mileage_km', toNumber(q.mileageFrom), toNumber(q.mileageTo));
+    addRange(filter, 'price_eur', toNumber(q.priceFrom), toNumber(q.priceTo));
+    addRange(filter, 'engine_kw', toNumber(q.engineKwFrom), toNumber(q.engineKwTo));
+
+    // Recommendation filters (year is handled above because of the Year field)
+    applyPreferenceRanges(filter, q, ['mileage_km', 'price_eur', 'engine_kw']);
+
+    if (q.fuel_type) filter.fuel_type = containsRegex(q.fuel_type);
+
+    if (q.gearbox) {
+      const type = String(q.gearbox).toLowerCase();
+      if (type === 'avtomatski' || type === 'automatic') filter.gearbox = /avtomatski/i;
+      else if (type === 'ročni' || type === 'manual') filter.gearbox = /ročni/i;
+      else filter.gearbox = containsRegex(q.gearbox);
     }
 
-    if (priceFrom || priceTo) {
-      filter.price_eur = {};
-      if (!isNaN(priceFrom)) filter.price_eur.$gte = Number(priceFrom);
-      if (!isNaN(priceTo)) filter.price_eur.$lte = Number(priceTo);
-    }
-
-    if (engineKwFrom || engineKwTo) {
-      filter.engine_kw = {};
-      if (!isNaN(engineKwFrom)) filter.engine_kw.$gte = Number(engineKwFrom);
-      if (!isNaN(engineKwTo)) filter.engine_kw.$lte = Number(engineKwTo);
-    }
-
-    if (fuel_type) {
-      filter.fuel_type = new RegExp(fuel_type, 'i');
-    }
-
-    if (gearbox) {
-      const type = gearbox.toLowerCase();
-      if (type === 'avtomatski') filter.gearbox = { $regex: /avtomatski/i };
-      else if (type === 'ročni') filter.gearbox = { $regex: /ročni/i };
-      else filter.gearbox = new RegExp(gearbox, 'i');
-    }
-
-    const trucks = await Truck.find(filter);
+    const trucks = await applyListOptions(Truck.find(filter), q);
 
     // Normalize year:
     const trucksWithCorrectYear = trucks.map(truck => {
@@ -84,4 +61,3 @@ exports.getAllTrucks = async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
-

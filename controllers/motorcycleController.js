@@ -1,4 +1,7 @@
 const Motorcycle = require('../models/Motorcycle');
+const {
+  containsRegex, toNumber, addRange, applyPreferenceRanges, applyListOptions,
+} = require('../utils/queryHelpers');
 
 exports.createMotorcycle = async (req, res) => {
   try {
@@ -12,46 +15,23 @@ exports.createMotorcycle = async (req, res) => {
 
 exports.getAllMotorcycles = async (req, res) => {
   try {
-    const {
-      make,
-      model,
-      first_registration,
-      mileageFrom,
-      mileageTo,
-      priceFrom,
-      priceTo,
-      engineKwFrom,
-      engineKwTo
-    } = req.query;
-
+    const q = req.query;
     const filter = {};
 
-    if (make) filter.make = new RegExp(make, 'i');
-    if (model) filter.model = new RegExp(model, 'i');
-    
-    if (first_registration && !isNaN(first_registration)) {
-      filter.first_registration = { $gte: parseInt(first_registration) };
-    }
+    if (q.make) filter.make = containsRegex(q.make);
+    if (q.model) filter.model = containsRegex(q.model);
 
-    if (mileageFrom || mileageTo) {
-      filter.mileage_km = {};
-      if (!isNaN(mileageFrom)) filter.mileage_km.$gte = Number(mileageFrom);
-      if (!isNaN(mileageTo)) filter.mileage_km.$lte = Number(mileageTo);
-    }
+    const yearFrom = toNumber(q.first_registration) ?? toNumber(q.yearFrom);
+    if (yearFrom !== undefined) filter.first_registration = { $gte: yearFrom };
 
-    if (priceFrom || priceTo) {
-      filter.price_eur = {};
-      if (!isNaN(priceFrom)) filter.price_eur.$gte = Number(priceFrom);
-      if (!isNaN(priceTo)) filter.price_eur.$lte = Number(priceTo);
-    }
+    addRange(filter, 'mileage_km', toNumber(q.mileageFrom), toNumber(q.mileageTo));
+    addRange(filter, 'price_eur', toNumber(q.priceFrom), toNumber(q.priceTo));
+    addRange(filter, 'engine_kw', toNumber(q.engineKwFrom), toNumber(q.engineKwTo));
 
-    if (engineKwFrom || engineKwTo) {
-      filter.engine_kw = {};
-      if (!isNaN(engineKwFrom)) filter.engine_kw.$gte = Number(engineKwFrom);
-      if (!isNaN(engineKwTo)) filter.engine_kw.$lte = Number(engineKwTo);
-    }
+    // Recommendation filters: first_registration_gte, mileage_km_lte, price_eur_lte
+    applyPreferenceRanges(filter, q, ['first_registration', 'mileage_km', 'price_eur', 'engine_kw']);
 
-    const motorcycles = await Motorcycle.find(filter);
+    const motorcycles = await applyListOptions(Motorcycle.find(filter), q);
     res.json(motorcycles);
   } catch (error) {
     console.error('Error fetching motorcycles:', error);

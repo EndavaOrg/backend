@@ -1,0 +1,214 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "znamke: status 200": {
+                    "id": "65392910c073a4350680fda3ab0e7e4c",
+                    "passes": 264,
+                    "fails": 0,
+                    "name": "znamke: status 200",
+                    "path": "::znamke: status 200"
+                },
+                "znamke: seznam ni prazen": {
+                    "name": "znamke: seznam ni prazen",
+                    "path": "::znamke: seznam ni prazen",
+                    "id": "9075baa73d693547226254ea1a520a3b",
+                    "passes": 264,
+                    "fails": 0
+                },
+                "štetje: status 200": {
+                    "name": "štetje: status 200",
+                    "path": "::štetje: status 200",
+                    "id": "935d0ceded7f49ef0226b669648bf38d",
+                    "passes": 212,
+                    "fails": 0
+                },
+                "najnovejši: status 200": {
+                    "name": "najnovejši: status 200",
+                    "path": "::najnovejši: status 200",
+                    "id": "6d9fe5d68ee8404d038c7d6c44df3f2c",
+                    "passes": 196,
+                    "fails": 0
+                },
+                "najnovejši: največ 12 oglasov": {
+                    "name": "najnovejši: največ 12 oglasov",
+                    "path": "::najnovejši: največ 12 oglasov",
+                    "id": "8311719829fc622be1c8a85e9198cf1d",
+                    "passes": 196,
+                    "fails": 0
+                },
+                "iskanje: status 200": {
+                    "name": "iskanje: status 200",
+                    "path": "::iskanje: status 200",
+                    "id": "d69024dc09a4b8cc7f68d7f5f61c225a",
+                    "passes": 186,
+                    "fails": 0
+                },
+                "iskanje: odgovor je seznam": {
+                    "name": "iskanje: odgovor je seznam",
+                    "path": "::iskanje: odgovor je seznam",
+                    "id": "57955f5a930c2d4f29e5bd4133a2dabb",
+                    "passes": 186,
+                    "fails": 0
+                },
+                "motorji: status 200": {
+                    "name": "motorji: status 200",
+                    "path": "::motorji: status 200",
+                    "id": "c0c6388e0ad225f0429964ea323cf7ed",
+                    "passes": 181,
+                    "fails": 0
+                }
+            }
+    },
+    "metrics": {
+        "http_req_duration{expected_response:true}": {
+            "avg": 5931.539700576923,
+            "min": 24.3645,
+            "med": 2402.192,
+            "p(90)": 17475.346010000012,
+            "p(95)": 25752.893944999996,
+            "max": 39024.1591
+        },
+        "http_req_sending": {
+            "p(95)": 0,
+            "max": 3.0057,
+            "avg": 0.024008750000000006,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0
+        },
+        "http_reqs": {
+            "count": 1040,
+            "rate": 5.472040950868727
+        },
+        "iterations": {
+            "count": 178,
+            "rate": 0.9365608550525321
+        },
+        "http_req_duration": {
+            "med": 2402.192,
+            "p(90)": 17475.346010000012,
+            "p(95)": 25752.893944999996,
+            "max": 39024.1591,
+            "avg": 5931.539700576923,
+            "min": 24.3645
+        },
+        "vus_max": {
+            "min": 100,
+            "max": 100,
+            "value": 100
+        },
+        "http_req_duration{name:iskanje}": {
+            "p(90)": 9131.261900000001,
+            "p(95)": 9729.490525000001,
+            "max": 14669.5836,
+            "avg": 3180.5900166666665,
+            "min": 28.9899,
+            "med": 2031.6361000000002,
+            "thresholds": {
+                "p(95)<3000": true
+            }
+        },
+        "http_req_blocked": {
+            "p(90)": 0,
+            "p(95)": 0.636964999999999,
+            "max": 20.1742,
+            "avg": 0.11273057692307693,
+            "min": 0,
+            "med": 0
+        },
+        "http_req_receiving": {
+            "avg": 1.3674125000000006,
+            "min": 0,
+            "med": 0.5799,
+            "p(90)": 4.28664,
+            "p(95)": 5.251295,
+            "max": 40.9808
+        },
+        "http_req_waiting": {
+            "med": 2401.72075,
+            "p(90)": 17472.11375000001,
+            "p(95)": 25748.271389999998,
+            "max": 39018.4023,
+            "avg": 5930.148279326923,
+            "min": 24.1156
+        },
+        "iteration_duration": {
+            "p(95)": 53181.462705000005,
+            "max": 54161.8812,
+            "avg": 35282.86104719102,
+            "min": 5058.1087,
+            "med": 42827.97195,
+            "p(90)": 51773.733
+        },
+        "data_sent": {
+            "count": 111839,
+            "rate": 588.4496037540457
+        },
+        "vus": {
+            "max": 100,
+            "value": 1,
+            "min": 0
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 1040,
+            "thresholds": {
+                "rate<0.05": false
+            },
+            "value": 0
+        },
+        "http_req_connecting": {
+            "avg": 0.06798990384615386,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0.42591999999999935,
+            "max": 13.8761
+        },
+        "checks": {
+            "fails": 0,
+            "passes": 1685,
+            "value": 1
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "max": 0,
+            "avg": 0
+        },
+        "data_received": {
+            "count": 607611365,
+            "rate": 3196994.491820428
+        }
+    },
+    "setup_data": {
+        "makes": [
+            "Abarth",
+            "Alfa Romeo",
+            "ALFA ROMEO",
+            "Aston Martin",
+            "Audi",
+            "BAIC",
+            "Bentley",
+            "BMW",
+            "Cadillac",
+            "Chevrolet",
+            "Chrysler",
+            "CITROEN",
+            "Citroën",
+            "Cupra",
+            "Dacia",
+            "Dodge",
+            "Dongfeng",
+            "DS",
+            "DS Automobiles",
+            "Ferrari"
+        ]
+    }
+}

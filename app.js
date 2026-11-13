@@ -1,5 +1,5 @@
-require('dotenv').config(); 
-console.log('MONGO_URI:', process.env.MONGO_URI);
+require('dotenv').config();
+// MONGO_URI is not logged: it contains the database password.
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -29,15 +29,15 @@ app.get('/', (req, res) => {
   res.send('🚀 API is running');
 });
 app.use('/api/users', userRoutes);
-app.use('/api/cars', carRoutes); 
+app.use('/api/cars', carRoutes);
 app.use('/api/motorcycles', motorcycleRoutes);
 app.use('/api/trucks', trucksRoutes);
 app.use('/api/ai', aiRoutes);
 
 // mongodb connection
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
+    .then(() => console.log('✅ Connected to MongoDB'))
+    .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // 404 handler
 app.use((req, res, next) => {

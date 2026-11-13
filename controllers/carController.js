@@ -1,95 +1,98 @@
 const Car = require('../models/Car');
 
+// 1 kW = 1.36 HP (metric horsepower)
+const HP_PER_KW = 1.36;
+
+// Query values (EN) mapped to the values stored in the DB (SLO, from avto.net)
+const FUEL_TYPE_PATTERNS = {
+  diesel: /diesel/i,
+  petrol: /bencin/i,
+  hybrid: /hibrid/i,
+  electric: /elektro|electric/i,
+};
+
+const GEARBOX_PATTERNS = {
+  automatic: /avtomatski/i,
+  manual: /ročni/i,
+  avtomatski: /avtomatski/i,
+  'ročni': /ročni/i,
+};
+
+const {
+  containsRegex, toNumber, addRange, applyPreferenceRanges, applyListOptions,
+} = require('../utils/queryHelpers');
+
+const hpToKw = (hp) => (hp === undefined ? undefined : Math.round(hp / HP_PER_KW));
+
+/**
+ * Builds a MongoDB filter for cars from request query parameters.
+ */
+const buildCarFilter = (query) => {
+  const filter = {};
+
+  if (query.make) filter.make = containsRegex(query.make);
+  if (query.model) filter.model = containsRegex(query.model);
+
+  const fuelPattern = FUEL_TYPE_PATTERNS[query.fuel_type?.toLowerCase()];
+  if (fuelPattern) filter.fuel_type = fuelPattern;
+
+  // Search form sends shifter_type, saved preferences send gearbox
+  const gearboxValue = (query.shifter_type || query.gearbox)?.toLowerCase();
+  const gearboxPattern = GEARBOX_PATTERNS[gearboxValue];
+  if (gearboxPattern) filter.gearbox = gearboxPattern;
+
+  // yearFrom from the search form; first_registration is the same value copied by the frontend
+  const yearFrom = toNumber(query.yearFrom) ?? toNumber(query.first_registration);
+  if (yearFrom !== undefined) filter.first_registration = { $gte: yearFrom };
+
+  // The frontend converts power to kW and sends engineKwFrom/engineKwTo.
+  // powerFrom/powerTo (+ powerUnit) are still accepted for older clients.
+  const isHp = query.powerUnit === 'HP';
+  const legacyFrom = isHp ? hpToKw(toNumber(query.powerFrom)) : toNumber(query.powerFrom);
+  const legacyTo = isHp ? hpToKw(toNumber(query.powerTo)) : toNumber(query.powerTo);
+  const powerFrom = toNumber(query.engineKwFrom) ?? legacyFrom;
+  const powerTo = toNumber(query.engineKwTo) ?? legacyTo;
+
+  addRange(filter, 'mileage_km', toNumber(query.mileageFrom), toNumber(query.mileageTo));
+  addRange(filter, 'engine_kw', powerFrom, powerTo);
+  addRange(filter, 'price_eur', toNumber(query.priceFrom), toNumber(query.priceTo));
+  addRange(filter, 'engine_ccm', toNumber(query.engineCcmFrom), toNumber(query.engineCcmTo));
+
+  // Recommendation filters: first_registration_gte, mileage_km_lte, price_eur_lte
+  applyPreferenceRanges(filter, query, ['first_registration', 'mileage_km', 'price_eur', 'engine_kw', 'engine_ccm']);
+
+  return filter;
+};
+
+const sendError = (res, status, message, error) => {
+  res.status(status).json({ message, error: error?.message });
+};
+
 exports.getAllCars = async (req, res) => {
   try {
-    const filter = {};
-
-    if (req.query.make) filter.make = { $regex: new RegExp(req.query.make, 'i') };
-    if (req.query.model) filter.model = { $regex: new RegExp(req.query.model, 'i') };
-
-    if (req.query.fuel_type) {
-      const type = req.query.fuel_type.toLowerCase();
-      if (type === 'diesel') filter.fuel_type = { $regex: /diesel/i };
-      else if (type === 'petrol') filter.fuel_type = { $regex: /bencin/i };
-      else if (type === 'hybrid') filter.fuel_type = { $regex: /hibrid/i };
-      else if (type === 'electric') filter.fuel_type = { $regex: /elektro|electric/i };
-    }
-
-    if (req.query.shifter_type) {
-      const type = req.query.shifter_type.toLowerCase();
-      if (type === 'automatic') filter.gearbox = { $regex: /avtomatski/i };
-      else if (type === 'manual') filter.gearbox = { $regex: /ročni/i };
-    }
-
-    if (req.query.yearFrom && !isNaN(Number(req.query.yearFrom))) {
-      filter.first_registration = { $gte: Number(req.query.yearFrom) };
-    }
-
-    const mileageFrom = Number(req.query.mileageFrom);
-    const mileageTo = Number(req.query.mileageTo);
-    if (!isNaN(mileageFrom) || !isNaN(mileageTo)) {
-      filter.mileage_km = {};
-      if (!isNaN(mileageFrom)) filter.mileage_km.$gte = mileageFrom;
-      if (!isNaN(mileageTo)) filter.mileage_km.$lte = mileageTo;
-    }
-
-    let powerFrom = Number(req.query.powerFrom);
-    let powerTo = Number(req.query.powerTo);
-    const powerUnit = req.query.powerUnit;
-
-    if (!isNaN(powerFrom) || !isNaN(powerTo)) {
-      if (powerUnit === 'HP') {
-        if (!isNaN(powerFrom)) powerFrom = Math.round(powerFrom / 1.36);
-        if (!isNaN(powerTo)) powerTo = Math.round(powerTo / 1.36);
-      }
-      filter.engine_kw = {};
-      if (!isNaN(powerFrom)) filter.engine_kw.$gte = powerFrom;
-      if (!isNaN(powerTo)) filter.engine_kw.$lte = powerTo;
-    }
-
-    const priceFrom = Number(req.query.priceFrom);
-    const priceTo = Number(req.query.priceTo);
-    if (!isNaN(priceFrom) || !isNaN(priceTo)) {
-      filter.price_eur = {};
-      if (!isNaN(priceFrom)) filter.price_eur.$gte = priceFrom;
-      if (!isNaN(priceTo)) filter.price_eur.$lte = priceTo;
-    }
-
-    const ccmFrom = Number(req.query.engineCcmFrom);
-    const ccmTo = Number(req.query.engineCcmTo);
-    if (!isNaN(ccmFrom) || !isNaN(ccmTo)) {
-      filter.engine_ccm = {};
-      if (!isNaN(ccmFrom)) filter.engine_ccm.$gte = ccmFrom;
-      if (!isNaN(ccmTo)) filter.engine_ccm.$lte = ccmTo;
-    }
-
-    const cars = await Car.find(filter);
+    const cars = await applyListOptions(Car.find(buildCarFilter(req.query)), req.query);
     res.status(200).json(cars);
   } catch (error) {
-    res.status(500).json({
-      message: 'Napaka pri pridobivanju vozil.',
-      error: error.message,
-    });
+    sendError(res, 500, 'Failed to fetch cars.', error);
   }
 };
 
 exports.getCarById = async (req, res) => {
   try {
     const car = await Car.findById(req.params.id);
-    if (!car) return res.status(404).json({ message: 'Vozilo ni bilo najdeno.' });
+    if (!car) return sendError(res, 404, 'Car not found.');
     res.status(200).json(car);
   } catch (error) {
-    res.status(500).json({ message: 'Napaka pri pridobivanju vozila.', error: error.message });
+    sendError(res, 500, 'Failed to fetch car.', error);
   }
 };
 
 exports.createCar = async (req, res) => {
   try {
-    const newCar = new Car(req.body);
-    const savedCar = await newCar.save();
+    const savedCar = await new Car(req.body).save();
     res.status(201).json(savedCar);
   } catch (error) {
-    res.status(500).json({ message: 'Napaka pri shranjevanju vozila.', error: error.message });
+    sendError(res, 500, 'Failed to save car.', error);
   }
 };
 
@@ -99,19 +102,19 @@ exports.updateCar = async (req, res) => {
       new: true,
       runValidators: true,
     });
-    if (!updatedCar) return res.status(404).json({ message: 'Vozilo ni bilo najdeno za posodobitev.' });
+    if (!updatedCar) return sendError(res, 404, 'Car not found.');
     res.status(200).json(updatedCar);
   } catch (error) {
-    res.status(500).json({ message: 'Napaka pri posodabljanju vozila.', error: error.message });
+    sendError(res, 500, 'Failed to update car.', error);
   }
 };
 
 exports.deleteCar = async (req, res) => {
   try {
     const deletedCar = await Car.findByIdAndDelete(req.params.id);
-    if (!deletedCar) return res.status(404).json({ message: 'Vozilo ni bilo najdeno za brisanje.' });
+    if (!deletedCar) return sendError(res, 404, 'Car not found.');
     res.status(204).send();
   } catch (error) {
-    res.status(500).json({ message: 'Napaka pri brisanju vozila.', error: error.message });
+    sendError(res, 500, 'Failed to delete car.', error);
   }
 };

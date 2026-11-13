@@ -5,14 +5,62 @@ const Motorcycle = require("../models/Motorcycle");
 const Truck = require("../models/Truck");
 const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent";
+const { containsRegex } = require("../utils/queryHelpers");
+
+// gemini-1.5-pro has been retired by Google, so requests to it fail.
+// The model is configurable via GEMINI_MODEL; check the current model list in Google AI Studio.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+// AI results are stored in the browser's localStorage (about 5 MB), so the result size is capped.
+const AI_RESULT_LIMIT = Number(process.env.AI_RESULT_LIMIT) || 200;
+// Optional second model, used when the main one is overloaded (e.g. GEMINI_FALLBACK_MODEL=<model name>).
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL;
+const geminiUrl = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+// 503 = model overloaded, 429 = rate limit: both are usually temporary, so retry.
+const RETRYABLE_STATUS = [429, 503];
+const RETRY_DELAYS_MS = [1000, 2000];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Calls Gemini, retrying temporary errors and then trying the fallback model (if set).
+ * Returns the parsed JSON body or throws an Error with the API status and message.
+ */
+async function callGemini(apiKey, prompt) {
+    const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL].filter(Boolean);
+    let lastError;
+
+    for (const model of models) {
+        for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+            // The key goes in a header (works for both AIza... and newer AQ.... keys)
+            // and is not part of the URL, so it does not end up in logs.
+            const response = await fetch(geminiUrl(model), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+                body: JSON.stringify({
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
+                }),
+            });
+            const raw = await response.json().catch(() => ({}));
+            if (response.ok) return raw;
+
+            lastError = new Error(`Gemini API ${response.status} (${model}): ${raw?.error?.message || "unknown error"}`);
+            if (!RETRYABLE_STATUS.includes(response.status)) throw lastError;
+            if (attempt < RETRY_DELAYS_MS.length) {
+                console.warn(`[AI Search] ${model} returned ${response.status}, retrying in ${RETRY_DELAYS_MS[attempt]} ms`);
+                await sleep(RETRY_DELAYS_MS[attempt]);
+            }
+        }
+    }
+    throw lastError;
+}
 
 router.post("/search", async (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ message: "Missing prompt." });
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ message: "Missing prompt." });
 
-  try {
-    const geminiPrompt = `
+    try {
+        const geminiPrompt = `
 You are a vehicle search assistant that helps extract structured filters from natural language.
 
 Your task:
@@ -135,113 +183,113 @@ Now return only the JSON object.
 
 `;
 
-    const response = await fetch(`${GEMINI_API_URL}?key=${process.env.GOOGLE_GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: geminiPrompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 512 }
-      })
-    });
+        const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+        if (!apiKey) throw new Error("GOOGLE_GEMINI_API_KEY is not set in .env");
 
-    const raw = await response.json();
-    const jsonText = raw?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Failed to parse Gemini response");
-    const filters = JSON.parse(jsonMatch[0]);
+        const tGemini = Date.now();
+        const raw = await callGemini(apiKey, geminiPrompt);
+        console.log(`[AI Search] Gemini: ${Date.now() - tGemini} ms`);
 
-    // Determine collection
-    let Model;
-    if (filters.vehicle_type === "motorcycle") Model = Motorcycle;
-    else if (filters.vehicle_type === "truck") Model = Truck;
-    else Model = Car;
+        const jsonText = raw?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!jsonText) throw new Error("Gemini returned no text");
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Failed to parse Gemini response");
+        const filters = JSON.parse(jsonMatch[0]);
 
-    console.log(`[AI Search] vehicle_type = ${filters.vehicle_type}`);
-    console.log(`[AI Search] Filters:`, filters);
+        // Determine collection
+        let Model;
+        if (filters.vehicle_type === "motorcycle") Model = Motorcycle;
+        else if (filters.vehicle_type === "truck") Model = Truck;
+        else Model = Car;
 
-    // Build query
-    const query = {};
+        console.log(`[AI Search] vehicle_type = ${filters.vehicle_type}`);
+        console.log(`[AI Search] Filters:`, filters);
 
-    if (filters.make) query.make = new RegExp(filters.make, "i");
-    if (filters.model) query.model = new RegExp(filters.model, "i");
+        // Build query
+        const query = {};
 
-    if (filters.price_max || filters.price_min) {
-      query.price_eur = {};
-      if (filters.price_max) query.price_eur.$lte = filters.price_max;
-      if (filters.price_min) query.price_eur.$gte = filters.price_min;
-    }
+        if (filters.make) query.make = containsRegex(filters.make);
+        if (filters.model) query.model = containsRegex(filters.model);
 
-    if (filters.mileage_max || filters.mileage_min) {
-      query.mileage_km = {};
-      if (filters.mileage_max) query.mileage_km.$lte = filters.mileage_max;
-      if (filters.mileage_min) query.mileage_km.$gte = filters.mileage_min;
-    }
-
-    // first_registration → universal for all
-    if (filters.year_min || filters.year_max) {
-      query.first_registration = {};
-      if (filters.year_min) query.first_registration.$gte = filters.year_min;
-      if (filters.year_max) query.first_registration.$lte = filters.year_max;
-    }
-
-    // engine_kw → safe for all
-    if (filters.engine_kw_min || filters.engine_kw_max) {
-      query.engine_kw = {};
-      if (filters.engine_kw_min) query.engine_kw.$gte = filters.engine_kw_min;
-      if (filters.engine_kw_max) query.engine_kw.$lte = filters.engine_kw_max;
-    }
-
-    // Fields only for car and truck
-    if (filters.vehicle_type === "car" || filters.vehicle_type === "truck") {
-      if (filters.gearbox === "automatic") query.gearbox = /avtomatski/i;
-      if (filters.gearbox === "manual") query.gearbox = /ročni/i;
-
-      if (filters.fuel_type) {
-        const map = {
-          diesel: /diesel/i,
-          petrol: /bencin|petrol/i,
-          hybrid: /hibrid/i,
-          electric: /elektrika|elektro|electric/i
-        };
-
-        if (Array.isArray(filters.fuel_type)) {
-          query.$or = filters.fuel_type.map(ft => ({ fuel_type: map[ft] }));
-        } else {
-          query.fuel_type = map[filters.fuel_type];
+        if (filters.price_max || filters.price_min) {
+            query.price_eur = {};
+            if (filters.price_max) query.price_eur.$lte = filters.price_max;
+            if (filters.price_min) query.price_eur.$gte = filters.price_min;
         }
-      }
 
-      if (filters.engine_ccm_min || filters.engine_ccm_max) {
-        query.engine_ccm = {};
-        if (filters.engine_ccm_min) query.engine_ccm.$gte = filters.engine_ccm_min;
-        if (filters.engine_ccm_max) query.engine_ccm.$lte = filters.engine_ccm_max;
-      }
+        if (filters.mileage_max || filters.mileage_min) {
+            query.mileage_km = {};
+            if (filters.mileage_max) query.mileage_km.$lte = filters.mileage_max;
+            if (filters.mileage_min) query.mileage_km.$gte = filters.mileage_min;
+        }
+
+        // first_registration → universal for all
+        if (filters.year_min || filters.year_max) {
+            query.first_registration = {};
+            if (filters.year_min) query.first_registration.$gte = filters.year_min;
+            if (filters.year_max) query.first_registration.$lte = filters.year_max;
+        }
+
+        // engine_kw → safe for all
+        if (filters.engine_kw_min || filters.engine_kw_max) {
+            query.engine_kw = {};
+            if (filters.engine_kw_min) query.engine_kw.$gte = filters.engine_kw_min;
+            if (filters.engine_kw_max) query.engine_kw.$lte = filters.engine_kw_max;
+        }
+
+        // Fields only for car and truck
+        if (filters.vehicle_type === "car" || filters.vehicle_type === "truck") {
+            if (filters.gearbox === "automatic") query.gearbox = /avtomatski/i;
+            if (filters.gearbox === "manual") query.gearbox = /ročni/i;
+
+            if (filters.fuel_type) {
+                const map = {
+                    diesel: /diesel/i,
+                    petrol: /bencin|petrol/i,
+                    hybrid: /hibrid/i,
+                    electric: /elektrika|elektro|electric/i
+                };
+
+                if (Array.isArray(filters.fuel_type)) {
+                    query.$or = filters.fuel_type.map(ft => ({ fuel_type: map[ft] }));
+                } else {
+                    query.fuel_type = map[filters.fuel_type];
+                }
+            }
+
+            if (filters.engine_ccm_min || filters.engine_ccm_max) {
+                query.engine_ccm = {};
+                if (filters.engine_ccm_min) query.engine_ccm.$gte = filters.engine_ccm_min;
+                if (filters.engine_ccm_max) query.engine_ccm.$lte = filters.engine_ccm_max;
+            }
+        }
+
+        // state → safe for all
+        if (filters.state) query.state = filters.state.toUpperCase();
+
+        // Execute query
+        const tDb = Date.now();
+        const results = await Model.find(query).sort({ _id: -1 }).limit(AI_RESULT_LIMIT);
+        console.log(`[AI Search] MongoDB: ${Date.now() - tDb} ms, ${results.length} results (limit ${AI_RESULT_LIMIT})`);
+
+        // Truck → normalize first_registration from Year if needed
+        if (filters.vehicle_type === "truck") {
+            const trucksWithCorrectYear = results.map(truck => {
+                const truckObj = truck.toObject();
+                truckObj.first_registration = truckObj.first_registration ?? truckObj.Year ?? null;
+                return truckObj;
+            });
+            console.log(`[AI Search] Found ${trucksWithCorrectYear.length} results (normalized).`);
+            return res.status(200).json(trucksWithCorrectYear);
+        }
+
+        console.log(`[AI Search] Found ${results.length} results.`);
+        res.status(200).json(results);
+
+    } catch (error) {
+        console.error("AI Search failed:", error.message);
+        res.status(500).json({ message: "AI search failed.", error: error.message });
     }
-
-    // state → safe for all
-    if (filters.state) query.state = filters.state.toUpperCase();
-
-    // Execute query
-    const results = await Model.find(query);
-
-    // Truck → normalize first_registration from Year if needed
-    if (filters.vehicle_type === "truck") {
-      const trucksWithCorrectYear = results.map(truck => {
-        const truckObj = truck.toObject();
-        truckObj.first_registration = truckObj.first_registration ?? truckObj.Year ?? null;
-        return truckObj;
-      });
-      console.log(`[AI Search] Found ${trucksWithCorrectYear.length} results (normalized).`);
-      return res.status(200).json(trucksWithCorrectYear);
-    }
-
-    console.log(`[AI Search] Found ${results.length} results.`);
-    res.status(200).json(results);
-
-  } catch (error) {
-    console.error("AI Search failed:", error.message);
-    res.status(500).json({ message: "AI search failed.", error: error.message });
-  }
 });
 
 module.exports = router;
