@@ -1,7 +1,5 @@
 const request = require('supertest');
 const express = require('express');
-const carRoutes = require('../../routes/carRoutes');
-const axios = require('axios');
 
 // Mock carController methods
 jest.mock('../../controllers/carController', () => ({
@@ -12,8 +10,13 @@ jest.mock('../../controllers/carController', () => ({
     deleteCar: jest.fn((req, res) => res.status(204).send()),
 }));
 
-// Mock axios
-jest.mock('axios');
+// Makes and models are read from the database (Car model), no longer from the CarQuery API
+jest.mock('../../models/Car', () => ({
+    distinct: jest.fn(),
+}));
+
+const Car = require('../../models/Car');
+const carRoutes = require('../../routes/carRoutes');
 
 const app = express();
 app.use(express.json());
@@ -63,30 +66,25 @@ describe('carRoutes', () => {
         });
     });
 
-    describe('External API proxy endpoints', () => {
-        afterEach(() => {
-            jest.resetAllMocks();
-        });
-
-        it('GET /cars/carquery/makes - success', async () => {
-            const fakeMakesResponse = { Makes: [{ make_id: 'toyota', make_display: 'Toyota' }] };
-            axios.get.mockResolvedValue({ data: fakeMakesResponse });
+    describe('Make and model endpoints (from database)', () => {
+        it('GET /cars/carquery/makes - returns sorted makes without empty values', async () => {
+            Car.distinct.mockResolvedValue(['Volkswagen', 'Audi', '', null]);
 
             const res = await request(app).get('/cars/carquery/makes');
 
-            expect(axios.get).toHaveBeenCalledWith('https://www.carqueryapi.com/api/0.3/?cmd=getMakes');
+            expect(Car.distinct).toHaveBeenCalledWith('make');
             expect(res.status).toBe(200);
-            expect(res.body).toEqual(fakeMakesResponse);
+            expect(res.body).toEqual({ Makes: [{ make_display: 'Audi' }, { make_display: 'Volkswagen' }] });
         });
 
         it('GET /cars/carquery/makes - failure', async () => {
-            axios.get.mockRejectedValue(new Error('Network error'));
+            Car.distinct.mockRejectedValue(new Error('DB error'));
 
             const res = await request(app).get('/cars/carquery/makes');
 
             expect(res.status).toBe(500);
             expect(res.body).toHaveProperty('message', 'Failed to fetch car makes');
-            expect(res.body).toHaveProperty('error', 'Network error');
+            expect(res.body).toHaveProperty('error', 'DB error');
         });
 
         it('GET /cars/carquery/models - missing make param', async () => {
@@ -96,26 +94,24 @@ describe('carRoutes', () => {
             expect(res.body).toHaveProperty('message', 'Missing make query parameter');
         });
 
-        it('GET /cars/carquery/models - success', async () => {
-            const make = 'toyota';
-            const fakeModelsResponse = { Models: [{ model_name: 'Corolla' }] };
-            axios.get.mockResolvedValue({ data: fakeModelsResponse });
+        it('GET /cars/carquery/models - success (make matched exactly, case-insensitive)', async () => {
+            Car.distinct.mockResolvedValue(['Passat', 'Golf']);
 
-            const res = await request(app).get(`/cars/carquery/models?make=${make}`);
+            const res = await request(app).get('/cars/carquery/models?make=volkswagen');
 
-            expect(axios.get).toHaveBeenCalledWith(`https://www.carqueryapi.com/api/0.3/?cmd=getModels&make=${make}`);
+            expect(Car.distinct).toHaveBeenCalledWith('model', { make: /^volkswagen$/i });
             expect(res.status).toBe(200);
-            expect(res.body).toEqual(fakeModelsResponse);
+            expect(res.body).toEqual({ Models: [{ model_name: 'Golf' }, { model_name: 'Passat' }] });
         });
 
         it('GET /cars/carquery/models - failure', async () => {
-            axios.get.mockRejectedValue(new Error('Network error'));
+            Car.distinct.mockRejectedValue(new Error('DB error'));
 
             const res = await request(app).get('/cars/carquery/models?make=toyota');
 
             expect(res.status).toBe(500);
             expect(res.body).toHaveProperty('message', 'Failed to fetch car models');
-            expect(res.body).toHaveProperty('error', 'Network error');
+            expect(res.body).toHaveProperty('error', 'DB error');
         });
     });
 });

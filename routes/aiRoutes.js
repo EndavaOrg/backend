@@ -3,7 +3,8 @@ const router = express.Router();
 const Car = require("../models/Car");
 const Motorcycle = require("../models/Motorcycle");
 const Truck = require("../models/Truck");
-const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
+// Built-in fetch (Node 18+). Unlike the dynamic import of node-fetch, it can be mocked in Jest (global.fetch = jest.fn()).
+const fetch = (...args) => globalThis.fetch(...args);
 
 const { containsRegex } = require("../utils/queryHelpers");
 

@@ -64,6 +64,6 @@ describe("Car Controller", () => {
             .get(`/cars/${fakeId}`)
             .expect(404);
 
-        expect(res.body.message).toMatch(/ni bilo najdeno/i);
+        expect(res.body.message).toMatch(/not found/i);
     });
 });

@@ -3,10 +3,13 @@ const Car = require('../../models/Car');
 const express = require('express');
 const request = require('supertest');
 const aiRoutes = require('../../routes/aiRoutes');
-const fetch = require('node-fetch');
 
-// Properly mock fetch
-jest.mock('node-fetch', () => jest.fn());
+// The route uses the built-in fetch (Node 18+), which is replaced with a mock here
+const fetch = jest.fn();
+global.fetch = fetch;
+
+// The route requires an API key; the real Gemini API is never called (fetch is mocked)
+process.env.GOOGLE_GEMINI_API_KEY = 'test-key';
 
 describe('AI Routes', () => {
     let app;
@@ -82,6 +85,8 @@ describe('AI Routes', () => {
 
     it('should handle Gemini response parsing failure', async () => {
         fetch.mockResolvedValue({
+            ok: true,
+            status: 200,
             json: jest.fn().mockResolvedValue({ candidates: [] })
         });
 
@@ -89,10 +94,13 @@ describe('AI Routes', () => {
 
         expect(res.status).toBe(500);
         expect(res.body.message).toBe('AI search failed.');
+        expect(res.body.error).toBe('Gemini returned no text');
     });
 
     it('should handle MongoDB error', async () => {
         fetch.mockResolvedValue({
+            ok: true,
+            status: 200,
             json: jest.fn().mockResolvedValue(geminiResponse)
         });
 
@@ -104,5 +112,6 @@ describe('AI Routes', () => {
 
         expect(res.status).toBe(500);
         expect(res.body.message).toBe('AI search failed.');
+        expect(res.body.error).toBe('Mongo failure');
     });
 });
